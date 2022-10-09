@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NSSCTF邀请码获取</title>
+    <script src="https://ajax.aspnetcdn.com/ajax/jQuery/jquery-3.6.0.min.js"></script>
+</head>
+<style>
+    .getCodes input, label, button {
+        font-size: x-large;
+    }
+</style>
+<body>
+<div class="getCodes">
+    <label for="uploadCodeFile">请找到群内发的邀请码，点击上传—> </label>
+    <input id="uploadCodeFile" type="file"><br>
+    <button onclick="GetCodeButton();" id="startCheck">获取邀请码</button><br>
+    <h2 id="showHint" style="color: red"></h2>
+</div>
+<script>
+    let codes = [], tFileI = document.getElementById('uploadCodeFile'), tHint = document.getElementById('showHint');
+    let threadControl = [0,0,0,0,0], usableCode = -1, checkNumberID = -1;
+
+    function GetCodeButton() {
+        if (tFileI.files.length === 0)
+            tHint.innerText = '您还没有选择邀请码文件！';
+        else if (tFileI.files[0].type !== 'text/plain')
+            tHint.innerText = '请不要上传非文本类文件。';
+        else {
+            let tFile = new FileReader();
+            tFile.onerror = function (event) {
+                tHint.innerText = '无法读取文件内容！请检查文件是否存在或权限是否有误！';
+                tFile.abort();
+            }
+            tFile.onloadend = function () {
+                if (tFile.result.includes('\r\n'))
+                    codes = tFile.result.split('\r\n');
+                else if (tFile.result.includes('\r'))
+                    codes = tFile.result.split('\r');
+                else
+                    codes = tFile.result.split('\n');
+                let tButton = document.getElementById('startCheck');
+                tButton.setAttribute('disabled', '');
+                tButton.innerText = '正在获取可用邀请码';
+                startCheck();
+            }
+            tFile.readAsText(tFileI.files[0], 'UTF-8');
+        }
+    }
+
+    function startCheck() {
+        for (let i = 0; i < threadControl.length; i++)
+            ajax_check(i, i);
+        checkNumberID = setInterval(function () {
+            let flag_working = false;
+            for (let i = 0; i < threadControl.length; i++)
+                if (threadControl[i] !== -1){
+                    flag_working = true;
+                    break;
+                }
+            if (!flag_working){
+                clearInterval(checkNumberID);
+                tHint.innerText = '搜索完毕，未发现可用的邀请码。';
+            }
+            else if (usableCode !== -1){
+                clearInterval(checkNumberID);
+                tHint.innerText = '可用邀请码：' + usableCode;
+            }
+        }, 5000);
+    }
+
+    function ajax_check(workID, currentPos) {
+        if (currentPos >= codes.length){
+            threadControl[workID] = -1;
+            return;
+        }
+        if (usableCode !== -1)
+            return;
+        $.ajax({
+            url: 'https://www.ctfer.vip/api/user/register/check/',
+            dataType: 'json',
+            method: 'POST',
+            contentType: 'application/json; charset=UTF-8',
+            data: JSON.stringify({'code': codes[currentPos]}),
+            success: function (data, textStatus, jqXHR) {
+                if (data.code === 201) {
+                    setTimeout(function () {
+                        ajax_check(workID, currentPos + threadControl.length);
+                    }, 100);
+                } else if (data.code === 200){
+                    if (usableCode === -1)
+                        usableCode = codes[currentPos];
+                }
+            }
+        });
+    }
+</script>
+</body>
+</html>
